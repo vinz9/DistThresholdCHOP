@@ -68,6 +68,7 @@ DistThresholdCHOP::getOutputInfo(CHOP_OutputInfo *info)
 	
 
 	int maxLines = (int)info->inputArrays->floatInputs[1].values[0];
+	int maxLinesPerPoint = (int)info->inputArrays->floatInputs[2].values[0];
 
 	info->numChannels = 7;
 
@@ -79,51 +80,57 @@ DistThresholdCHOP::getOutputInfo(CHOP_OutputInfo *info)
 
 	l = 0;
 
-	if (info->inputArrays->numCHOPInputs > 0){
+	//int d = info->inputArrays->numCHOPInputs;
 
-	for (int i = 0; i < info->inputArrays->CHOPInputs[0].length; i++)
-			{
+	if (info->inputArrays->numCHOPInputs > 1 && info->inputArrays->CHOPInputs[0].numChannels>0){
+
+		for (int i = 0; i < info->inputArrays->CHOPInputs[0].length; i++){
 				
-				if(l<maxLines){
+			if(l<maxLines){
 
-				float p1[] = {info->inputArrays->CHOPInputs[0].channels[0][i],
-								info->inputArrays->CHOPInputs[0].channels[1][i],
-								info->inputArrays->CHOPInputs[0].channels[2][i]};
+					/*int d1 = info->inputArrays->CHOPInputs[0].channels[0][i];
+					int d2 = info->inputArrays->CHOPInputs[0].channels[1][i];
+					int d3 = info->inputArrays->CHOPInputs[0].channels[2][i];*/
+
+					float p1[] = {info->inputArrays->CHOPInputs[0].channels[0][i],
+									info->inputArrays->CHOPInputs[0].channels[1][i],
+									info->inputArrays->CHOPInputs[0].channels[2][i]};
 				
-				for (int j = i+1; j < info->inputArrays->CHOPInputs[0].length; j++)
-					{
+					int k=0;
+
+					for (int j = 0; j < info->inputArrays->CHOPInputs[1].length; j++){
 				
-						if(l<maxLines){
+							if(l<maxLines && k<maxLinesPerPoint){
 
-					float p2[] = {info->inputArrays->CHOPInputs[0].channels[0][j],
-								info->inputArrays->CHOPInputs[0].channels[1][j],
-								info->inputArrays->CHOPInputs[0].channels[2][j]};
+								float p2[] = {info->inputArrays->CHOPInputs[1].channels[0][j],
+											info->inputArrays->CHOPInputs[1].channels[1][j],
+											info->inputArrays->CHOPInputs[1].channels[2][j]};
 
-					float sqrdist = pow(p2[0]-p1[0],2) + pow(p2[1]-p1[1],2) + pow(p2[2]-p1[2],2);
-						float distMax = info->inputArrays->floatInputs[0].values[0];
-						//float fade = info->inputArrays->floatInputs[0].values[1];
-						if (sqrdist<distMax) {
+								float sqrdist = pow(p2[0]-p1[0],2) + pow(p2[1]-p1[1],2) + pow(p2[2]-p1[2],2);
+									float distMax = info->inputArrays->floatInputs[0].values[0];
+									//float fade = info->inputArrays->floatInputs[0].values[1];
+									if (sqrdist<distMax) {
 							
-							linepos[0][l] = p1[0];
-							linepos[1][l] = p1[1];
-							linepos[2][l] = p1[2];
-							linepos[3][l] = p2[0];
-							linepos[4][l] = p2[1];
-							linepos[5][l] = p2[2];
-							//linepos[5][l] = sqrdist;
-							linepos[6][l] = sqrdist;
-							l++;
-						}
-						}
+										linepos[0][l] = p1[0];
+										linepos[1][l] = p1[1];
+										linepos[2][l] = p1[2];
+										linepos[3][l] = p2[0];
+										linepos[4][l] = p2[1];
+										linepos[5][l] = p2[2];
+										//linepos[5][l] = sqrdist;
+										linepos[6][l] = sqrdist;
+										l++;
+										k++;
+									}
+							}
 					
 						
-				}
+					}
 				
 			}
-	}
+		}
 	} else {
-	for (int i = 0 ; i < info->numChannels; i++)
-		{
+		for (int i = 0 ; i < info->numChannels; i++){
 				free(linepos[i]);
 		}
 	}
@@ -173,7 +180,7 @@ DistThresholdCHOP::execute(const CHOP_Output* output,
 	
 	// In this case we'll just take the first input and re-output it with it's
 	// value divivded by two
-	if (inputs->numCHOPInputs > 0)
+	if (inputs->numCHOPInputs > 1 && inputs->CHOPInputs[0].numChannels>0)
 	{
 				
 		for (int i = 0 ; i < output->numChannels; i++)
