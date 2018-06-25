@@ -1,3 +1,13 @@
+/* Shared Use License: This file is owned by Derivative Inc. (Derivative) and
+ * can only be used, and/or modified for use, in conjunction with 
+ * Derivative's TouchDesigner software, and only if you are a licensee who has
+ * accepted Derivative's TouchDesigner license or assignment agreement (which
+ * also govern the use of this file).  You may share a modified version of this
+ * file with another authorized licensee of Derivative's TouchDesigner software.
+ * Otherwise, no redistribution or sharing of this file, with or without
+ * modification, is permitted.
+ */
+
 /*
  * Produced by:
  *
@@ -18,50 +28,27 @@
  *	stays the same, otherwise changes won't be backwards compatible
  */
 
-
 #ifndef __CHOP_CPlusPlusBase__
 #define __CHOP_CPlusPlusBase__
 
+#define NOMINMAX
+
 #include <windows.h>
 #include <cstdio>
+#include "CPlusPlus_Common.h"
 
 #define DLLEXPORT __declspec (dllexport)
 
-#define CHOP_CPLUSPLUS_API_VERSION	1
+#define CHOP_CPLUSPLUS_API_VERSION	6
 
 class CHOP_CPlusPlusBase;
-class CHOP_NodeInfo;
 
 
 // These are the definitions for the C-functions that are used to
 // load the library and create instances of the object you define
 typedef int (__cdecl *GETCHOPAPIVERSION)(void);
-typedef CHOP_CPlusPlusBase* (__cdecl *CREATECHOPINSTANCE)(const CHOP_NodeInfo*);
+typedef CHOP_CPlusPlusBase* (__cdecl *CREATECHOPINSTANCE)(const OP_NodeInfo*);
 typedef void (__cdecl *DESTROYCHOPINSTANCE)(CHOP_CPlusPlusBase*);
-
-// These classes are used to pass data to/from the functions you will define
-
-class CHOP_NodeInfo
-{
-public:
-	// The full path to the node
-
-	const char*		nodeFullPath;
-
-	// A unique ID representing the node, no two nodes will ever
-	// have the same ID in a single Touch instance.
-
-	unsigned int	uniqueNodeId;
-
-	// This is the handle to the main TouchDesigner window.
-	// It's possible this will be 0 the first few times the node cooks,
-	// incase it cooks while Touch is still loading up
-
-	HWND			mainWindowHandle;
-
-private:
-	int				reserved[19];
-};
 
 
 class CHOP_GeneralInfo
@@ -81,16 +68,16 @@ public:
 	bool			cookEveryFrameIfAsked;
 
 	// Set this to true if you will be outputting a timeslice
-	// Outputting a timeslice means the length of the CHOP will be determined
-	// by the number of frames that have elapsed since the last time Touch
-	// cooked (it will be more than one in cases where it's running slower
-	// than the target cook rate), the playbar framerate and the sample
-	// rate of the CHOP.
+	// Outputting a timeslice means the number of samples in the CHOP will 
+	// be determined by the number of frames that have elapsed since the last 
+	// time Touch cooked (it will be more than one in cases where it's 
+	// running slower than the target cook rate), the playbar framerate and 
+	// the sample rate of the CHOP.
 	// For example if you are outputting the CHOP 120hz sample rate, 
 	// Touch is running at 60 hz cookrate, and you missed a frame last cook
-	// then on this cook the length of the output of this CHOP will be
-	// 4 samples. ((120 / 60) * number of playbar frames to output)
-	// If this isn't set then you specify the length of the CHOP using
+	// then on this cook the number of sampels of the output of this CHOP will
+	// be 4 samples. I.e (120 / 60) * number of playbar frames to output.
+	// If this isn't set then you specify the number of sample in the CHOP using
 	// the getOutputInfo() function
 	// DEFAULT: false
 
@@ -108,108 +95,6 @@ private:
 	int				reserved[20];
 };
 
-class CHOP_FloatInput
-{
-public:
-	const char*		name;
-	int				inputNumber;
-
-	// Will contain the 4 floats in the parameter.
-
-	float			values[4];
-
-private:
-	int				reserved[20];
-};
-
-class CHOP_StringInput
-{
-public:
-	const char*		name;
-	int				inputNumber;
-	const char*		value;
-
-private:
-	int				reserved[20];
-};
-
-class CHOP_CHOPInput
-{
-public:
-	const char*		nodeFullPath;
-	int				inputNumber;
-	int				numChannels;
-	int				length;
-	float			sampleRate;
-	unsigned int	startIndex;
-
-	// This is an array of const char* which tells you the names of the
-	// channels. The length of the array is 'numChannels' long.
-	// For example names[1] is the name of the 2nd channel
-	const char**	names;
-
-	// This is an array of float arrays. The array is 'numChannels' long
-	// while each individual array within the array is 'length' long
-	// e.g: channels[1][10] will refer to the 11th sample in the 2nd channel 
-	const float**	channels;
-
-
-private:
-	int				reserved[20];
-};
-
-
-class CHOP_DATInput
-{
-public:
-	const char*     nodeFullPath;
-	int             inputNumber;
-	int             numRows;
-	int             numCols;
-	bool            isTable;
-
-	// data, referenced by [row][col], which will be a const char* for the
-	// contents of the cell
-	// E.g data[1][1] will be the contents of the cell located at (1, 1)
-	const char***   data;
-
-private:
-	int             reserved[20];
-};
-
-
-class CHOP_InputArrays
-{
-public:
-
-	int						numFloatInputs;
-
-	// floatInputs is an array of CHOP_FloatInputs objects, 'numFloatInputs' long
-	// e.g floatInputs[0].name
-
-	const CHOP_FloatInput*	floatInputs;
-
-
-	// The rest of these are similar to the floatInputs description
-
-	int						numCHOPInputs;
-	const CHOP_CHOPInput*	CHOPInputs;
-
-	int						numStringInputs;
-	const CHOP_StringInput*	stringInputs;
-
-	int						numDATInputs;
-	const CHOP_DATInput*	DATInputs;
-
-
-
-private:
-#ifdef _WIN64
-	int				reserved[95];
-#else
-	int				reserved[98];
-#endif
-};
 
 class CHOP_OutputInfo
 {
@@ -220,10 +105,9 @@ public:
 	int				numChannels;
 
 
-	// If you arn't outputting a timeslice, specify the length of the channels
-	// here
+	// If you arn't outputting a timeslice, specify the number of samples here
 
-	int				length;
+	int				numSamples;
 
 
 	// if you arn't outputting a timeslice, specify the start index
@@ -243,7 +127,7 @@ public:
 	// your inputs/parameters to decide what you will be outputting from
 	// the CHOP, you shouldn't change anything in this structure
 
-	const CHOP_InputArrays *inputArrays;
+	OP_Inputs*		opInputs;
 
 private:
 
@@ -253,59 +137,12 @@ private:
 
 
 
-
-class CHOP_InfoCHOPChan
-{
-public:
-	char*			name;
-	float			value;
-private:
-	int				reserved[10];
-};
-
-class CHOP_InfoDATSize
-{
-public:
-	
-	// Set this to the size you want the table to be
-
-	int				rows;
-	int				cols;
-
-	// Set this to true if you want to return DAT entries on a column
-	// by column basis.
-	// Otherwise set to false, and you'll be expected to set them on
-	// a row by row basis.
-
-	bool			byColumn;
-
-
-private:
-	int				reserved[10];
-};
-
-class CHOP_InfoDATEntries
-{
-public:
-
-	// This is an array of char* pointers which you are expected to assign
-	// The start off as NULL, you need to allocate or assign constant/statis
-	// strings to them
-	// e.g values[1] = "myColumnName";
-
-	char**			values;
-
-private:
-	int				reserved[10];
-};
-
-
 class CHOP_Output
 {
 public:
 	CHOP_Output(int nc, int l, float s, unsigned int st):	
 											numChannels(nc),
-											length(l),
+											numSamples(l),
 											sampleRate(s),
 											startIndex(st)
 	{
@@ -313,7 +150,7 @@ public:
 
 	// Info about what you are expected to output
 	const int		numChannels;
-	const int		length;
+	const int		numSamples;
 	const float		sampleRate;
 	const unsigned int startIndex;
 
@@ -324,7 +161,7 @@ public:
 
 	// This is an array of float arrays, the length of the array is
 	// 'numChannels', while the length of each of the arrays each entry
-	// points to is 'length'.
+	// points to is 'numSamples'.
 	// For example channels[1][10] will point to the 11th sample in the 2nd
 	// channel
 	float**			channels;
@@ -334,6 +171,15 @@ private:
 
 	int				reserved[20];
 };
+
+
+/***** FUNCTION CALL ORDER DURING INITIALIZATION ******/
+/*
+    When the TOP loads the dll the functions will be called in this order
+
+    setupParameters(OP_ParameterManager* m);
+
+*/
 
 /***** FUNCTION CALL ORDER DURING A COOK ******/
 /*
@@ -387,10 +233,10 @@ public:
 
 
 	// This function is called so the class can tell the CHOP how many
-	// channels it wants to output, their length etc.
+	// channels it wants to output, how many samples etc.
 	// Return true if you specify the output here
 	// Return false if you want the output to be set by matching
-	// the channel names, length, sample rate etc. of one of your inputs
+	// the channel names, numSamples, sample rate etc. of one of your inputs
 	// The input that is used is chosen by setting the 'inputMatchIndex'
 	// memeber in getGeneralInfo()
 	// The CHOP_OutputFormat class is pre-filled with what the CHOP would
@@ -416,11 +262,11 @@ public:
 
 	// In this function you do whatever you want to fill the framebuffer
 	// 
-	// See the CHOP_InputArrays class definition for more details on it's
+	// See the OP_Inputs class definition for more details on it's
 	// contents
 
 	virtual void		execute(const CHOP_Output*,
-								const CHOP_InputArrays*,
+								OP_Inputs* ,
 								void* reserved) = 0;
 
 
@@ -441,7 +287,7 @@ public:
 	// to it.
 
 	virtual void		getInfoCHOPChan(int index,
-										CHOP_InfoCHOPChan *chan)
+										OP_InfoCHOPChan* chan)
 						{
 						}
 
@@ -451,7 +297,7 @@ public:
 	// Set the members of the CHOP_InfoDATSize class to specify
 	// the dimensions of the Info DAT
 
-	virtual bool		getInfoDATSize(CHOP_InfoDATSize *infoSize)
+	virtual bool		getInfoDATSize(OP_InfoDATSize* infoSize)
 						{
 							return false;
 						}
@@ -464,7 +310,7 @@ public:
 
 	virtual void		getInfoDATEntries(int index,
 											int nEntries,
-											CHOP_InfoDATEntries *entries)
+											OP_InfoDATEntries* entries)
 						{
 						}
 
@@ -492,14 +338,24 @@ public:
 							return NULL;
 						}
 
+
+	// Override these methods if you want to define specfic parameters
+	virtual void        setupParameters(OP_ParameterManager* manager)
+						{
+						}
+
+
+	// This is called whenever a pulse parameter is pressed
+	virtual void		pulsePressed(const char* name)
+						{
+						}
+
 	// END PUBLIC INTERFACE
 				
 
 private:
 
 	// Reserved for future features
-	virtual int		reservedFunc4() { return 0; }
-	virtual int		reservedFunc5() { return 0; }
 	virtual int		reservedFunc6() { return 0; }
 	virtual int		reservedFunc7() { return 0; }
 	virtual int		reservedFunc8() { return 0; }
@@ -521,4 +377,3 @@ private:
 };
 
 #endif
-

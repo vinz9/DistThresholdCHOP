@@ -3,6 +3,41 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <assert.h>
+#include <cmath>
+
+
+double GetSeconds()
+{
+	static LARGE_INTEGER lastTime;
+	static LARGE_INTEGER freq;
+	static bool first = true;
+
+
+	if (first)
+	{
+		QueryPerformanceCounter(&lastTime);
+		QueryPerformanceFrequency(&freq);
+
+		first = false;
+	}
+
+	static double time = 0.0;
+
+	LARGE_INTEGER t;
+	QueryPerformanceCounter(&t);
+
+	__int64 delta = t.QuadPart - lastTime.QuadPart;
+	double deltaSeconds = double(delta) / double(freq.QuadPart);
+
+	time += deltaSeconds;
+
+	lastTime = t;
+
+	return time;
+
+}
+
 
 // These functions are basic C function, which the DLL loader can find
 // much easier than finding a C++ Class.
@@ -12,7 +47,7 @@ extern "C"
 {
 
 DLLEXPORT
-int
+int32_t
 GetCHOPAPIVersion(void)
 {
 	// Always return CHOP_CPLUSPLUS_API_VERSION in this function.
@@ -21,7 +56,7 @@ GetCHOPAPIVersion(void)
 
 DLLEXPORT
 CHOP_CPlusPlusBase*
-CreateCHOPInstance(const CHOP_NodeInfo *info)
+CreateCHOPInstance(const OP_NodeInfo *info)
 {
 	// Return a new instance of your class every time this is called.
 	// It will be called once per CHOP that is using the .dll
@@ -41,9 +76,12 @@ DestroyCHOPInstance(CHOP_CPlusPlusBase *instance)
 };
 
 
-DistThresholdCHOP::DistThresholdCHOP(const CHOP_NodeInfo *info) : myNodeInfo(info)
+DistThresholdCHOP::DistThresholdCHOP(const OP_NodeInfo *info) : myNodeInfo(info)
 {
 	myExecuteCount = 0;
+	timer1 = 0;
+	timer2 = 0;
+
 
 }
 
@@ -67,8 +105,10 @@ DistThresholdCHOP::getOutputInfo(CHOP_OutputInfo *info)
 {
 	
 
-	int maxLines = (int)info->inputArrays->floatInputs[1].values[0];
-	int maxLinesPerPoint = (int)info->inputArrays->floatInputs[2].values[0];
+
+	int maxLines = info->opInputs->getParInt("Maxlines");
+	int maxLinesPerPoint = info->opInputs->getParInt("Maxlinesperpoint");
+	float distMax = info->opInputs->getParDouble("Distmax");
 
 	info->numChannels = 7;
 
@@ -80,34 +120,39 @@ DistThresholdCHOP::getOutputInfo(CHOP_OutputInfo *info)
 
 	l = 0;
 
-	//int d = info->inputArrays->numCHOPInputs;
 
-	if (info->inputArrays->numCHOPInputs > 1 && info->inputArrays->CHOPInputs[0].numChannels>0){
+	float t1 = GetSeconds();
 
-		for (int i = 0; i < info->inputArrays->CHOPInputs[0].length; i++){
+	if (info->opInputs->getNumInputs() > 1 && info->opInputs->getInputCHOP(0)->numChannels>0){
+
+		const OP_CHOPInput* chopInput0 = info->opInputs->getInputCHOP(0);
+
+
+		for (int i = 0; i < chopInput0->numSamples; i++){
 				
 			if(l<maxLines){
 
-					/*int d1 = info->inputArrays->CHOPInputs[0].channels[0][i];
-					int d2 = info->inputArrays->CHOPInputs[0].channels[1][i];
-					int d3 = info->inputArrays->CHOPInputs[0].channels[2][i];*/
 
-					float p1[] = {info->inputArrays->CHOPInputs[0].channels[0][i],
-									info->inputArrays->CHOPInputs[0].channels[1][i],
-									info->inputArrays->CHOPInputs[0].channels[2][i]};
+				float p1[] = { chopInput0->getChannelData(0)[i],
+								chopInput0->getChannelData(1)[i],
+								chopInput0->getChannelData(2)[i] };
 				
 					int k=0;
 
-					for (int j = 0; j < info->inputArrays->CHOPInputs[1].length; j++){
+					const OP_CHOPInput* chopInput1 = info->opInputs->getInputCHOP(1);
+
+					for (int j = 0; j < chopInput1->numSamples; j++){
 				
 							if(l<maxLines && k<maxLinesPerPoint){
 
-								float p2[] = {info->inputArrays->CHOPInputs[1].channels[0][j],
-											info->inputArrays->CHOPInputs[1].channels[1][j],
-											info->inputArrays->CHOPInputs[1].channels[2][j]};
+								float p2[] = { chopInput1->getChannelData(0)[j],
+									chopInput1->getChannelData(1)[j],
+									chopInput1->getChannelData(2)[j] };
 
-								float sqrdist = pow(p2[0]-p1[0],2) + pow(p2[1]-p1[1],2) + pow(p2[2]-p1[2],2);
-									float distMax = info->inputArrays->floatInputs[0].values[0];
+								float sqrdist = std::pow(p2[0]-p1[0],2) + std::pow(p2[1]-p1[1],2) + std::pow(p2[2]-p1[2],2);
+
+								
+
 									//float fade = info->inputArrays->floatInputs[0].values[1];
 									if (sqrdist<distMax) {
 							
@@ -129,14 +174,24 @@ DistThresholdCHOP::getOutputInfo(CHOP_OutputInfo *info)
 				
 			}
 		}
+
+
 	} else {
 		for (int i = 0 ; i < info->numChannels; i++){
 				free(linepos[i]);
 		}
 	}
 
-	if(l<1) l=1;
-	info->length = l;
+
+	if(l<1)
+		l=1;
+
+
+	info->numSamples = l;
+
+	float t2 = GetSeconds();
+	timer2 = t2 - t1;
+
 	return true;
 }
 
@@ -172,15 +227,14 @@ DistThresholdCHOP::getChannelName(int index, void* reserved)
 }
 
 void
-DistThresholdCHOP::execute(const CHOP_Output* output,
-								const CHOP_InputArrays* inputs,
-								void* reserved)
+DistThresholdCHOP::execute(const CHOP_Output* output, OP_Inputs* inputs, void* reserved)
 {
 	myExecuteCount++;
+
+	float t1 = GetSeconds();
 	
-	// In this case we'll just take the first input and re-output it with it's
-	// value divivded by two
-	if (inputs->numCHOPInputs > 1 && inputs->CHOPInputs[0].numChannels>0)
+
+	if (inputs->getNumInputs() > 1 && inputs->getInputCHOP(0)->numChannels>0)
 	{
 				
 		for (int i = 0 ; i < output->numChannels; i++)
@@ -188,28 +242,14 @@ DistThresholdCHOP::execute(const CHOP_Output* output,
 			memcpy(output->channels[i], linepos[i], l*sizeof(float));
 
 			free(linepos[i]);
+
 		}
-
-		
-
-		
-
 
 	}
-	/*else // If not input is connected, lets output a sine wave instead
-	{
-		// Notice that startIndex and the output->length is used to output a smooth
-		// wave by ensuring that we are outputting a value for each sample
-		// Since we are outputting at 120, for each frame that has passed we'll be
-		// outputing 2 samples (assuming the timeline is running at 60hz).
-		for (int i = 0; i < output->numChannels; i++)
-		{
-			for (int j = 0; j < output->length; j++)
-			{
-				output->channels[i][j] = sin(((float)output->startIndex + j) / 100.0f);
-			}
-		}
-	}*/
+
+	float t2 = GetSeconds();
+	timer1 = t2 - t1;
+
 }
 
 int
@@ -217,25 +257,40 @@ DistThresholdCHOP::getNumInfoCHOPChans()
 {
 	// We return the number of channel we want to output to any Info CHOP
 	// connected to the CHOP. In this example we are just going to send one channel.
-	return 1;
+	return 3;
 }
 
 void
-DistThresholdCHOP::getInfoCHOPChan(int index,
-										CHOP_InfoCHOPChan *chan)
+DistThresholdCHOP::getInfoCHOPChan(int index, OP_InfoCHOPChan *chan)
 {
 	// This function will be called once for each channel we said we'd want to return
 	// In this example it'll only be called once.
 
-	if (index == 0)
-	{
+
+	switch (index){
+
+	case 0:
 		chan->name = "executeCount";
 		chan->value = myExecuteCount;
+		break;
+
+	case 1:
+		chan->name = "timer1";
+		chan->value = timer1*1000;
+		break;
+
+	case 2:
+		chan->name = "timer2";
+		chan->value = timer2*1000;
+		break;
+
 	}
+
+
 }
 
 bool		
-DistThresholdCHOP::getInfoDATSize(CHOP_InfoDATSize *infoSize)
+DistThresholdCHOP::getInfoDATSize(OP_InfoDATSize *infoSize)
 {
 	infoSize->rows = 1;
 	infoSize->cols = 2;
@@ -248,7 +303,7 @@ DistThresholdCHOP::getInfoDATSize(CHOP_InfoDATSize *infoSize)
 void
 DistThresholdCHOP::getInfoDATEntries(int index,
 										int nEntries,
-										CHOP_InfoDATEntries *entries)
+										OP_InfoDATEntries *entries)
 {
 	if (index == 0)
 	{
@@ -265,4 +320,46 @@ DistThresholdCHOP::getInfoDATEntries(int index,
 		sprintf(tempBuffer2, "%d", myExecuteCount);
 		entries->values[1] = tempBuffer2;
 	}
+}
+
+void
+DistThresholdCHOP::setupParameters(OP_ParameterManager* manager)
+{
+	//Distmax
+	{
+		OP_NumericParameter	np;
+
+		np.name = "Distmax";
+		np.label = "Distmax";
+		np.defaultValues[0] = 1.0;
+
+		OP_ParAppendResult res = manager->appendFloat(np);
+		assert(res == OP_ParAppendResult::Success);
+	}
+
+	//Maxlines
+	{
+		OP_NumericParameter	np;
+
+		np.name = "Maxlines";
+		np.label = "Maxlines";
+		np.defaultValues[0] = 1000.0;
+
+		OP_ParAppendResult res = manager->appendInt(np);
+		assert(res == OP_ParAppendResult::Success);
+	}
+
+	//Maxlinesperpoint
+	{
+		OP_NumericParameter	np;
+
+		np.name = "Maxlinesperpoint";
+		np.label = "Maxlinesperpoint";
+		np.defaultValues[0] = 1000.0;
+
+		OP_ParAppendResult res = manager->appendInt(np);
+		assert(res == OP_ParAppendResult::Success);
+	}
+
+
 }

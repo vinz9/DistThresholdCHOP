@@ -21,32 +21,34 @@ If no input is connected then the node will output a smooth sine wave at 120hz.
 class DistThresholdCHOP : public CHOP_CPlusPlusBase
 {
 public:
-	DistThresholdCHOP(const CHOP_NodeInfo *info);
+	DistThresholdCHOP(const OP_NodeInfo *info);
 	virtual ~DistThresholdCHOP();
 
-	virtual void		getGeneralInfo(CHOP_GeneralInfo *);
-	virtual bool		getOutputInfo(CHOP_OutputInfo*);
-	virtual const char*	getChannelName(int index, void* reserved);
+	virtual void		getGeneralInfo(CHOP_GeneralInfo*) override;
+	virtual bool		getOutputInfo(CHOP_OutputInfo*) override;
+	virtual const char*	getChannelName(int index, void* reserved) override;
 
-	virtual void		execute(const CHOP_Output*,
-								const CHOP_InputArrays*,
-								void* reserved);
+	virtual void		execute(const CHOP_Output*, OP_Inputs*, void* reserved) override;
 
 
-	virtual int			getNumInfoCHOPChans();
+	virtual int			getNumInfoCHOPChans() override;
 	virtual void		getInfoCHOPChan(int index,
-										CHOP_InfoCHOPChan *chan);
+		OP_InfoCHOPChan* chan) override;
 
-	virtual bool		getInfoDATSize(CHOP_InfoDATSize *infoSize);
+	virtual bool		getInfoDATSize(OP_InfoDATSize* infoSize) override;
 	virtual void		getInfoDATEntries(int index,
-											int nEntries,
-											CHOP_InfoDATEntries *entries);
+		int nEntries,
+		OP_InfoDATEntries* entries) override;
+
+	virtual void		setupParameters(OP_ParameterManager* manager) override;
+	//virtual void		pulsePressed(const char* name) override;
+
 private:
 
 	// We don't need to store this pointer, but we do for the example.
 	// The CHOP_NodeInfo class store information about the node that's using
 	// this instance of the class (like its name).
-	const CHOP_NodeInfo		*myNodeInfo;
+	const OP_NodeInfo		*myNodeInfo;
 
 	// In this example this value will be incremented each time the execute()
 	// function is called, then passes back to the CHOP 
@@ -56,6 +58,10 @@ private:
 	float** linepos;
 
 	int l;
+
+	float timer1;
+	float timer2;
+
 
 
 };
