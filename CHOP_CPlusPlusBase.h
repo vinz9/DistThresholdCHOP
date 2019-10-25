@@ -31,22 +31,43 @@
 #ifndef __CHOP_CPlusPlusBase__
 #define __CHOP_CPlusPlusBase__
 
-#define NOMINMAX
-
-#include <windows.h>
-#include <cstdio>
 #include "CPlusPlus_Common.h"
 
-#define DLLEXPORT __declspec (dllexport)
-
-#define CHOP_CPLUSPLUS_API_VERSION	6
 
 class CHOP_CPlusPlusBase;
+
+// Define for the current API version that this sample code is made for.
+// To upgrade to a newer version, replace the files
+// CHOP_CPlusPlusBase.h
+// CPlusPlus_Common.h
+// from the samples folder in a newer TouchDesigner installation.
+// You may need to upgrade your plugin code in that case, to match
+// the new API requirements
+const int CHOPCPlusPlusAPIVersion = 8;
+
+struct CHOP_PluginInfo
+{
+public:
+
+	// Must be set to CHOPCPlusPlusAPIVersion in FillCHOPPluginInfo
+	int32_t			apiVersion = 0;
+
+	int32_t			reserved[100];
+
+
+	// Information used to describe this plugin as a custom OP.
+	OP_CustomOPInfo	customOPInfo;
+
+
+	int32_t			reserved2[20];
+
+};
+
 
 
 // These are the definitions for the C-functions that are used to
 // load the library and create instances of the object you define
-typedef int (__cdecl *GETCHOPAPIVERSION)(void);
+typedef void (__cdecl *FILLCHOPPLUGININFO)(CHOP_PluginInfo *info);
 typedef CHOP_CPlusPlusBase* (__cdecl *CREATECHOPINSTANCE)(const OP_NodeInfo*);
 typedef void (__cdecl *DESTROYCHOPINSTANCE)(CHOP_CPlusPlusBase*);
 
@@ -70,11 +91,11 @@ public:
 	// Set this to true if you will be outputting a timeslice
 	// Outputting a timeslice means the number of samples in the CHOP will 
 	// be determined by the number of frames that have elapsed since the last 
-	// time Touch cooked (it will be more than one in cases where it's 
+	// time TouchDesigner cooked (it will be more than one in cases where it's 
 	// running slower than the target cook rate), the playbar framerate and 
 	// the sample rate of the CHOP.
 	// For example if you are outputting the CHOP 120hz sample rate, 
-	// Touch is running at 60 hz cookrate, and you missed a frame last cook
+	// TouchDesigner is running at 60 hz cookrate, and you missed a frame last cook
 	// then on this cook the number of sampels of the output of this CHOP will
 	// be 4 samples. I.e (120 / 60) * number of playbar frames to output.
 	// If this isn't set then you specify the number of sample in the CHOP using
@@ -88,12 +109,12 @@ public:
 	// (channel names, length, sample rate etc.)
 	// DEFAULT : 0
 
-	int				inputMatchIndex;
+	int32_t			inputMatchIndex;
 
 
-private:
-	int				reserved[20];
+	int32_t			reserved[20];
 };
+
 
 
 class CHOP_OutputInfo
@@ -102,19 +123,19 @@ public:
 
 	// The number of channels you want to output
 
-	int				numChannels;
+	int32_t			numChannels;
 
 
 	// If you arn't outputting a timeslice, specify the number of samples here
 
-	int				numSamples;
+	int32_t			numSamples;
 
 
 	// if you arn't outputting a timeslice, specify the start index
 	// of the channels here. This is the 'Start' you see when you
 	// middle click on a CHOP
 
-	unsigned int	startIndex;
+	uint32_t		startIndex;
 
 
 	// Specify the sample rate of the channel data
@@ -123,54 +144,55 @@ public:
 	float			sampleRate;
 
 
-	// This is provided for you incase you want to use data from the
-	// your inputs/parameters to decide what you will be outputting from
-	// the CHOP, you shouldn't change anything in this structure
+	void*			reserved1;
 
-	OP_Inputs*		opInputs;
 
-private:
-
-	int				reserved[20];
+	int32_t			reserved[20];
 
 };
+
+
 
 
 
 class CHOP_Output
 {
 public:
-	CHOP_Output(int nc, int l, float s, unsigned int st):	
+	CHOP_Output(int32_t nc, int32_t l, float s, uint32_t st,
+					float **cs, const char** ns):
 											numChannels(nc),
 											numSamples(l),
 											sampleRate(s),
-											startIndex(st)
+											startIndex(st),
+											channels(cs),
+											names(ns)
 	{
 	}
 
 	// Info about what you are expected to output
-	const int		numChannels;
-	const int		numSamples;
+	const int32_t	numChannels;
+	const int32_t	numSamples;
 	const float		sampleRate;
-	const unsigned int startIndex;
+	const uint32_t	startIndex;
 
 	// This is an array of const char* that tells you the channel names
 	// of the channels you are providing values for. It's 'numChannels' long. 
 	// E.g names[3] is the name of the 4th channel
-	const char**	names;
+	const char** const 	names;
 
-	// This is an array of float arrays, the length of the array is
-	// 'numChannels', while the length of each of the arrays each entry
-	// points to is 'numSamples'.
+	// This is an array of float arrays that is already allocated for you.
+	// Fill it with the data you want outputted for this CHOP.
+	// The length of the array is 'numChannels',
+	// While the length of each of the array entries is 'numSamples'.
 	// For example channels[1][10] will point to the 11th sample in the 2nd
 	// channel
-	float**			channels;
+	float** const	channels;
 
 
-private:
 
-	int				reserved[20];
+	int32_t			reserved[20];
 };
+
 
 
 /***** FUNCTION CALL ORDER DURING INITIALIZATION ******/
@@ -216,139 +238,135 @@ protected:
 	{
 	}
 
-
-public:
-
 	virtual ~CHOP_CPlusPlusBase()
 	{
 	}
 
+public:
+
+
 	// BEGIN PUBLIC INTERFACE
 
-	// Some general settings can be assigned here (if you ovierride it)
-
-	virtual void		getGeneralInfo(CHOP_GeneralInfo*)
-						{
-						}
+	// Some general settings can be assigned here (if you override it)
+	virtual void
+	getGeneralInfo(CHOP_GeneralInfo*, const OP_Inputs *inputs, void* reserved1)
+	{
+	}
 
 
 	// This function is called so the class can tell the CHOP how many
 	// channels it wants to output, how many samples etc.
-	// Return true if you specify the output here
+	// Return true if you specify the output here.
 	// Return false if you want the output to be set by matching
 	// the channel names, numSamples, sample rate etc. of one of your inputs
 	// The input that is used is chosen by setting the 'inputMatchIndex'
-	// memeber in getGeneralInfo()
-	// The CHOP_OutputFormat class is pre-filled with what the CHOP would
+	// memeber in CHOP_OutputInfo
+	// The CHOP_OutputInfo class is pre-filled with what the CHOP would
 	// output if you return false, so you can just tweak a few settings
 	// and return true if you want
-
-	virtual bool		getOutputInfo(CHOP_OutputInfo*)
-						{
-							return false;
-						}
+	virtual bool		
+	getOutputInfo(CHOP_OutputInfo*, const OP_Inputs *inputs, void *reserved1)
+	{
+		return false;
+	}
 
 
 	// This function will be called after getOutputInfo() asking for
 	// the channel names. It will get called once for each channel name
 	// you need to specify. If you returned 'false' from getOutputInfo()
 	// it won't be called.
+	virtual void
+	getChannelName(int32_t index, OP_String *name,
+					const OP_Inputs *inputs, void* reserved1)
+	{
+		name->setString("chan1");
+	}
 
-	virtual const char*	getChannelName(int index, void* reserved)
-						{
-							return "chan1";
-						}
 
-
-	// In this function you do whatever you want to fill the framebuffer
-	// 
-	// See the OP_Inputs class definition for more details on it's
-	// contents
-
-	virtual void		execute(const CHOP_Output*,
-								OP_Inputs* ,
-								void* reserved) = 0;
+	// In this function you do whatever you want to fill the output channels
+	// which are already allocated for you in 'outputs'
+	virtual void		execute(CHOP_Output* outputs,
+								const OP_Inputs* inputs,
+								void* reserved1) = 0;
 
 
 	// Override these methods if you want to output values to the Info CHOP/DAT
 	// returning 0 means you dont plan to output any Info CHOP channels
+	virtual int32_t		
+	getNumInfoCHOPChans(void *reserved1)
+	{
+		return 0;
+	}
 
-	virtual int			getNumInfoCHOPChans()
-						{
-							return 0;
-						}
-
-	// Specify the name and value for CHOP 'index',
+	// Specify the name and value for Info CHOP channel 'index',
 	// by assigning something to 'name' and 'value' members of the
-	// CHOP_InfoCHOPChan class pointer that is passed (it points
-	// to a valid instance of the class already.
-	// the 'name' pointer will initially point to NULL
-	// you must allocate memory or assign a constant string
-	// to it.
-
-	virtual void		getInfoCHOPChan(int index,
-										OP_InfoCHOPChan* chan)
-						{
-						}
+	// OP_InfoCHOPChan class pointer that is passed in.
+	virtual void
+	getInfoCHOPChan(int32_t index, OP_InfoCHOPChan* chan, void* reserved1)
+	{
+	}
 
 
 	// Return false if you arn't returning data for an Info DAT
 	// Return true if you are.
 	// Set the members of the CHOP_InfoDATSize class to specify
 	// the dimensions of the Info DAT
-
-	virtual bool		getInfoDATSize(OP_InfoDATSize* infoSize)
-						{
-							return false;
-						}
+	virtual bool		
+	getInfoDATSize(OP_InfoDATSize* infoSize, void *reserved1)
+	{
+		return false;
+	}
 
 	// You are asked to assign values to the Info DAT 1 row or column at a time
 	// The 'byColumn' variable in 'getInfoDATSize' is how you specify
 	// if it is by column or by row.
 	// 'index' is the row/column index
 	// 'nEntries' is the number of entries in the row/column
-
-	virtual void		getInfoDATEntries(int index,
-											int nEntries,
-											OP_InfoDATEntries* entries)
-						{
-						}
+	// Strings should be UTF-8 encoded.
+	virtual void	
+	getInfoDATEntries(int32_t index, int32_t nEntries,
+										OP_InfoDATEntries* entries,
+										void *reserved1)
+	{
+	}
 
 	// You can use this function to put the node into a warning state
-	// with the returned string as the message.
-	// Return NULL if you don't want it to be in a warning state.
-	virtual const char* getWarningString() 
-						{
-							return NULL; 
-						}
+	// by calling setSting() on 'warning' with a non empty string.
+	// Leave 'warning' unchanged to not go into warning state.
+	virtual void
+	getWarningString(OP_String *warning, void *reserved1) 
+	{
+	}
 
 	// You can use this function to put the node into a error state
-	// with the returned string as the message.
-	// Return NULL if you don't want it to be in a error state.
-	virtual const char* getErrorString() 
-						{
-							return NULL; 
-						}
+	// by calling setSting() on 'error' with a non empty string.
+	// Leave 'error' unchanged to not go into error state.
+	virtual void
+	getErrorString(OP_String *error, void *reserved1) 
+	{
+	}
 
 	// Use this function to return some text that will show up in the
 	// info popup (when you middle click on a node)
-	// Return NULL if you don't want to return anything.
-	virtual const char*	getInfoPopupString() 
-						{
-							return NULL;
-						}
+	// call setString() on info and give it some info if desired.
+	virtual void
+	getInfoPopupString(OP_String *info, void *reserved1) 
+	{
+	}
 
 
 	// Override these methods if you want to define specfic parameters
-	virtual void        setupParameters(OP_ParameterManager* manager)
-						{
-						}
+	virtual void        
+	setupParameters(OP_ParameterManager* manager, void* reserved1)
+	{
+	}
 
 
 	// This is called whenever a pulse parameter is pressed
-	virtual void		pulsePressed(const char* name)
-						{
-						}
+	virtual void
+	pulsePressed(const char* name, void* reserved1)
+	{
+	}
 
 	// END PUBLIC INTERFACE
 				
@@ -356,24 +374,48 @@ public:
 private:
 
 	// Reserved for future features
-	virtual int		reservedFunc6() { return 0; }
-	virtual int		reservedFunc7() { return 0; }
-	virtual int		reservedFunc8() { return 0; }
-	virtual int		reservedFunc9() { return 0; }
-	virtual int		reservedFunc10() { return 0; }
-	virtual int		reservedFunc11() { return 0; }
-	virtual int		reservedFunc12() { return 0; }
-	virtual int		reservedFunc13() { return 0; }
-	virtual int		reservedFunc14() { return 0; }
-	virtual int		reservedFunc15() { return 0; }
-	virtual int		reservedFunc16() { return 0; }
-	virtual int		reservedFunc17() { return 0; }
-	virtual int		reservedFunc18() { return 0; }
-	virtual int		reservedFunc19() { return 0; }
-	virtual int		reservedFunc20() { return 0; }
+	virtual int32_t	reservedFunc6() { return 0; }
+	virtual int32_t	reservedFunc7() { return 0; }
+	virtual int32_t	reservedFunc8() { return 0; }
+	virtual int32_t	reservedFunc9() { return 0; }
+	virtual int32_t	reservedFunc10() { return 0; }
+	virtual int32_t	reservedFunc11() { return 0; }
+	virtual int32_t	reservedFunc12() { return 0; }
+	virtual int32_t	reservedFunc13() { return 0; }
+	virtual int32_t	reservedFunc14() { return 0; }
+	virtual int32_t	reservedFunc15() { return 0; }
+	virtual int32_t	reservedFunc16() { return 0; }
+	virtual int32_t	reservedFunc17() { return 0; }
+	virtual int32_t	reservedFunc18() { return 0; }
+	virtual int32_t	reservedFunc19() { return 0; }
+	virtual int32_t	reservedFunc20() { return 0; }
 
-	int				reserved[400];
+	int32_t			reserved[400];
 
 };
 
+static_assert(offsetof(CHOP_PluginInfo, apiVersion) == 0, "Incorrect Alignment");
+static_assert(offsetof(CHOP_PluginInfo, customOPInfo) == 408, "Incorrect Alignment");
+static_assert(sizeof(CHOP_PluginInfo) == 944, "Incorrect Size");
+
+static_assert(offsetof(CHOP_GeneralInfo, cookEveryFrame) == 0, "Incorrect Alignment");
+static_assert(offsetof(CHOP_GeneralInfo, cookEveryFrameIfAsked) == 1, "Incorrect Alignment");
+static_assert(offsetof(CHOP_GeneralInfo, timeslice) == 2, "Incorrect Alignment");
+static_assert(offsetof(CHOP_GeneralInfo, inputMatchIndex) == 4, "Incorrect Alignment");
+static_assert(sizeof(CHOP_GeneralInfo) == 88, "Incorrect Size");
+
+static_assert(offsetof(CHOP_OutputInfo, numChannels) == 0, "Incorrect Alignment");
+static_assert(offsetof(CHOP_OutputInfo, numSamples) == 4, "Incorrect Alignment");
+static_assert(offsetof(CHOP_OutputInfo, startIndex) == 8, "Incorrect Alignment");
+static_assert(offsetof(CHOP_OutputInfo, sampleRate) == 12, "Incorrect Alignment");
+static_assert(offsetof(CHOP_OutputInfo, reserved1) == 16, "Incorrect Alignment");
+static_assert(sizeof(CHOP_OutputInfo) == 104, "Incorrect Size");
+
+static_assert(offsetof(CHOP_Output, numChannels) == 0, "Incorrect Alignment");
+static_assert(offsetof(CHOP_Output, numSamples) == 4, "Incorrect Alignment");
+static_assert(offsetof(CHOP_Output, sampleRate) == 8, "Incorrect Alignment");
+static_assert(offsetof(CHOP_Output, startIndex) == 12, "Incorrect Alignment");
+static_assert(offsetof(CHOP_Output, names) == 16, "Incorrect Alignment");
+static_assert(offsetof(CHOP_Output, channels) == 24, "Incorrect Alignment");
+static_assert(sizeof(CHOP_Output) == 112, "Incorrect Size");
 #endif
