@@ -3,6 +3,9 @@ DistThresholdCHOP
 
 Finds pair of points closer than a certain distance.
 
+Look at the Releases page for a compiled version for Windows  
+https://github.com/vinz9/DistThresholdCHOP/releases
+
 <img src="https://github.com/vinz9/DistThresholdCHOP/blob/master/distThresholdChop.jpg">
 
 Release Notes :
